@@ -35,7 +35,7 @@ CNeural_Status CNeural_ReLU_F32_Forward(
     {
         for (size_t b = 0; b < batch_size; b++)
         {
-            output[io * batch_size + b] = (input[io * batch_size + b] > 0.0f) * input[io * batch_size + b];
+            output[io * batch_size + b] += (input[io * batch_size + b] > 0.0f) * input[io * batch_size + b];
         }
     }
 
@@ -73,7 +73,7 @@ CNeural_Status CNeural_ReLU_F64_Forward(
     {
         for (size_t b = 0; b < batch_size; b++)
         {
-            output[io * batch_size + b] = (input[io * batch_size + b] > 0) * input[io * batch_size + b];
+            output[io * batch_size + b] += (input[io * batch_size + b] > 0) * input[io * batch_size + b];
         }
     }
 
@@ -103,7 +103,7 @@ CNeural_Status CNeural_ReLU_F32_Backward(
     {
         for (size_t b = 0; b < batch_size; b++)
         {
-            input_grad[io * batch_size + b] = output_grad[io * batch_size + b] * ((input[batch_size + b] > 0.0f) * 1.0f);
+            input_grad[io * batch_size + b] += output_grad[io * batch_size + b] * ((input[batch_size + b] > 0.0f) * 1.0f);
         }
     }
 
@@ -133,7 +133,7 @@ CNeural_Status CNeural_ReLU_F64_Backward(
     {
         for (size_t b = 0; b < batch_size; b++)
         {
-            input_grad[io * batch_size + b] = output_grad[io * batch_size + b] * ((input[batch_size + b] > 0) * 1);
+            input_grad[io * batch_size + b] += output_grad[io * batch_size + b] * ((input[batch_size + b] > 0) * 1);
         }
     }
 

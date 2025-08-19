@@ -6,13 +6,13 @@
 // #define USE_OPENBLAS
 // #define USE_ONEMKL
 
-#if defined USE_ONEMKL
+#ifdef USE_ONEMKL
     #include "mkl_cblas.h"
     #define  USE_CBLAS_API
     typedef MKL_INT cblas_int;
 #endif
 
-#if defined USE_OPENBLAS
+#ifdef USE_OPENBLAS
     #include "cblas.h"
     #define USE_CBLAS_API
     typedef blasint cblasint;

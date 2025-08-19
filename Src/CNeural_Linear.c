@@ -6,16 +6,16 @@
 
 /**
  * Performs forward pass for a single-precision (float32) linear layer.
- * Math: Output = input * weights_T + bias
+ * Math:    Output = input * weights_T + bias
  *
- * @param input      Pointer to input tensor of shape [batch_size, input_dim]
- * @param weights    Pointer to weight tensor of shape [output_dim, input_dim]
- * @param bias       Pointer to bias tensor of shape [output_dim]
- * @param output     Pointer to output tensor of shape [batch_size, output_dim]
- * @param batch_size Number of samples in the current batch
- * @param input_dim  Dimensionality of input features
- * @param output_dim Dimensionality of output features
- * @return CNeural_Status Execution status code (success/error)
+ * @param   input           Pointer to input tensor of shape [batch_size, input_dim]
+ * @param   weights         Pointer to weight tensor of shape [output_dim, input_dim]
+ * @param   bias            Pointer to bias tensor of shape [output_dim]
+ * @param   output          Pointer to output tensor of shape [batch_size, output_dim]
+ * @param   batch_size      Number of samples in the current batch
+ * @param   input_dim       Dimensionality of input features
+ * @param   output_dim      Dimensionality of output features
+ * @return  CNeural_Status  Execution status code (success/error)
  */
 CNeural_Status CNeural_Linear_F32_Forward(
     const float* input,
@@ -87,23 +87,22 @@ CNeural_Status CNeural_Linear_F32_Forward(
     }
 #endif
 
-
     return CNeural_Success;
 }
 
 
 /**
  * Performs forward pass for a double-precision (float64) linear layer.
- * Math: Output = input * weights_T + bias
+ * Math:    Output = input * weights_T + bias
  *
- * @param input      Pointer to input tensor of shape [batch_size, input_dim]
- * @param weights    Pointer to weight matrix of shape [output_dim, input_dim]
- * @param bias       Pointer to bias vector of shape [output_dim]
- * @param output     Pointer to output tensor of shape [batch_size, output_dim]
- * @param batch_size Number of samples in the current batch
- * @param input_dim  Dimensionality of input features
- * @param output_dim Dimensionality of output features
- * @return CNeural_Status Execution status code (success/error)
+ * @param   input           Pointer to input tensor of shape [batch_size, input_dim]
+ * @param   weights         Pointer to weight matrix of shape [output_dim, input_dim]
+ * @param   bias            Pointer to bias vector of shape [output_dim]
+ * @param   output          Pointer to output tensor of shape [batch_size, output_dim]
+ * @param   batch_size      Number of samples in the current batch
+ * @param   input_dim       Dimensionality of input features
+ * @param   output_dim      Dimensionality of output features
+ * @return  CNeural_Status  Execution status code (success/error)
  */
 CNeural_Status CNeural_Linear_F64_Forward(
     const double* input,

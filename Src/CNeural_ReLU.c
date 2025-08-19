@@ -43,7 +43,7 @@ CNeural_Status CNeural_ReLU_F32_Forward(
 }
 
 /**
- * Performs forward pass for a single-precision (float64) ReLU layer.
+ * Performs forward pass for a double-precision (float64) ReLU layer.
  * Math: Output = max(0, input)
  *
  * @param input      Pointer to input tensor of shape [batch_size, input_dim]

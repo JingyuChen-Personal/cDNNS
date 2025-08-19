@@ -6,7 +6,7 @@
 
 /**
  * Performs forward pass for a single-precision (float32) linear layer.
- * Math:    Output = input * weights_T + bias
+ * Math:    Output += input * weights_T + bias
  *
  * @param   input           Pointer to input tensor of shape [batch_size, input_dim]
  * @param   weights         Pointer to weight tensor of shape [output_dim, input_dim]
@@ -35,8 +35,8 @@ CNeural_Status CNeural_Linear_F32_Forward(
         return CNeural_Error_InvalidParameter;
     }
 #endif
-
 #if defined USE_CBLAS_API
+    // Perform matrix multiplication
     cblas_sgemm(
         CblasRowMajor,
         CblasNoTrans, CblasTrans,
@@ -47,7 +47,7 @@ CNeural_Status CNeural_Linear_F32_Forward(
         0.0f,
         output, output_dim
     );
-
+    // Add bias
     for (size_t b = 0; b < batch_size; b++)
     {
         cblas_saxpy(
@@ -106,14 +106,14 @@ CNeural_Status CNeural_Linear_F32_Forward(
         bias_iter    = bias;
     }
 #endif
-
     return CNeural_Success;
 }
 
 
+
 /**
  * Performs forward pass for a double-precision (float64) linear layer.
- * Math:    Output = input * weights_T + bias
+ * Math:    Output += input * weights_T + bias
  *
  * @param   input           Pointer to input tensor of shape [batch_size, input_dim]
  * @param   weights         Pointer to weight matrix of shape [output_dim, input_dim]
@@ -142,8 +142,8 @@ CNeural_Status CNeural_Linear_F64_Forward(
         return CNeural_Error_InvalidParameter;
     }
 #endif
-
 #if defined USE_CBLAS_API
+    // Perform matrix multiplication
     cblas_dgemm(
         CblasRowMajor,
         CblasNoTrans, CblasTrans,
@@ -154,7 +154,7 @@ CNeural_Status CNeural_Linear_F64_Forward(
         0.0,
         output, output_dim
     );
-
+    // Add bias
     for (size_t b = 0; b < batch_size; b++)
     {
         cblas_daxpy(
@@ -213,7 +213,6 @@ CNeural_Status CNeural_Linear_F64_Forward(
         bias_iter    = bias;
     }
 #endif
-
     return CNeural_Success;
 }
 
@@ -240,6 +239,116 @@ CNeural_Status CNeural_Linear_F32_Backward(
         return CNeural_Error_InvalidParameter;
     }
 #endif
+#if defined USE_CBLAS_API
+    // Compute the gradient of the input
+    cblas_sgemm(
+        CblasRowMajor,
+        CblasNoTrans, CblasNoTrans,
+        batch_size, input_dim, output_dim,
+        1.0f,
+        output_grad, output_dim,
+        weights, input_dim,
+        0.0f,
+        input_grad, input_dim 
+    );
+    // Branch on reduction to compute the gradients of the weights and bias
+    if (reduction == CNeural_Reduction_Mean)
+    {
+        // Compute the gradient of the weights
+        cblas_sgemm(
+            CblasRowMajor,
+            CblasTrans, CblasNoTrans,
+            output_dim, input_dim, batch_size,
+            1.0f / batch_size,
+            output_grad, output_dim,
+            input_grad, input_dim,
+            0.0f,
+            weights_grad, input_dim
+        );
+        // Compute the gradient of the bias
+        for (size_t b = 0; b < batch_size; b++)
+        {
+            cblas_saxpy(
+                output_dim,
+                1.0f / batch_size,
+                output_grad + b * output_dim, 1,
+                bias_grad, 1
+            );
+        }
+    }
+    else if (reduction == CNeural_Reduction_Sum)
+    {
+        // Compute the gradient of the weights
+        cblas_sgemm(
+            CblasRowMajor,
+            CblasTrans, CblasNoTrans,
+            output_dim, input_dim, batch_size,
+            1.0f,
+            output_grad, output_dim,
+            input_grad, input_dim,
+            0.0f,
+            weights_grad, input_dim
+        );
+        // Compute the gradient of the bias
+        for (size_t b = 0; b < batch_size; b++)
+        {
+            cblas_saxpy(
+                output_dim,
+                1.0f,
+                output_grad + b * output_dim, 1,
+                bias_grad, 1
+            );
+        }
+    }
+    else if (CNeural_Reduction_None)
+    {
+        // Compute the gradient of the weights
+        CBLAS_TRANSPOSE TransA  = CblasTrans;
+        CBLAS_TRANSPOSE TransB  = CblasNoTrans;
+        cblasint M = output_dim;
+        cblasint N = input_dim;
+        cblasint K = 1;
+        cblasint lda = output_dim;
+        cblasint ldb = input_dim;;
+        cblasint ldc = input_dim;
+        float beta = 0.0f;
+        float alpha = 1.0f;
+        float** A_array = (float**)malloc(batch_size * sizeof(float*));
+        float** B_array = (float**)malloc(batch_size * sizeof(float*));
+        float** C_array = (float**)malloc(batch_size * sizeof(float*));
+        for (size_t b = 0; b < batch_size; b++)
+        {
+            A_array[b] = output_grad + b * output_dim;        
+            B_array[b] = input_grad  + b * input_dim;   
+            C_array[b] = weights     + b * output_dim * input_dim;
+        }
+        cblas_sgemm_batch(
+            CblasRowMajor,
+            &TransA, &TransB,
+            &M, &N, &K,
+            &alpha,
+            A_array, &lda,
+            B_array, &ldb,
+            &beta,
+            C_array, &ldc,
+            1, &batch_size
+        );
+        free(A_array);
+        free(B_array);
+        free(C_array);
+        // Compute the gradient of the bias
+        cblas_saxpy(
+            output_dim * batch_size,
+            1.0f,
+            output_grad, 1,
+            bias_grad, 1
+        );
+    }
+    else
+    {
+        return CNeural_Error_InvalidParameter;
+    }
+#else
     // Compute the gradient of the input
     for (size_t i = 0; i < input_dim; i++)
     {
@@ -251,73 +360,49 @@ CNeural_Status CNeural_Linear_F32_Backward(
             }
         }
     }
-
-    // Compute the gradient of the weights
+    // Branch on reduction to compute the gradients of the weights and bias
     if (reduction == CNeural_Reduction_Mean)
     {
+        // Compute the gradient of the weights
         for (size_t o = 0; o < output_dim; o++)
         {
             for (size_t i = 0; i < input_dim; i++)
             {
-                weights_grad[o * input_dim + i] = 0.0f;
+                float sum = 0;
                 for (size_t b = 0; b < batch_size; b++)
                 {
-                    weights_grad[o * input_dim + i] += output_grad[o * batch_size + b] * input[i * batch_size + b];
+                    sum += output_grad[o * batch_size + b] * input[i * batch_size + b];
                 }
+                weights_grad[o * input_dim + i] += sum / batch_size;
             }
         }
-    }
-    else if (reduction == CNeural_Reduction_Sum)
-    {
+        // Compute the gradient of the bias
         for (size_t o = 0; o < output_dim; o++)
         {
-            for (size_t i = 0; i < input_dim; i++)
-            {
-                weights_grad[o * input_dim + i] = 0.0f;
-                for (size_t b = 0; b < batch_size; b++)
-                {
-                    weights_grad[o * input_dim + i] += output_grad[o * batch_size + b] * input[i * batch_size + b];
-                }
-                weights_grad[o * input_dim + i] /= batch_size;
-            }
-        }
-    }
-    else if (CNeural_Reduction_None)
-    {
-        for (size_t o = 0; o < output_dim; o++)
-        {
-            for (size_t i = 0; i < input_dim; i++)
-            {
-                for (size_t b = 0; b < batch_size; b++)
-                {
-                    weights_grad[(o * input_dim + i) * batch_size + b] = output_grad[o * batch_size + b] * input[i * batch_size + b];
-                }
-            }
-        }
-    }
-    else
-    {
-        return CNeural_Error_InvalidParameter;
-    }
-
-    // Compute the gradient of the bias
-    if (reduction == CNeural_Reduction_Mean)
-    {
-        for (size_t o = 0; o < output_dim; o++)
-        {
-            bias_grad[o] = 0.0f;
+            float sum = 0
             for (size_t b = 0; b < batch_size; b++)
             {
-                bias_grad[o] += output_grad[o * batch_size + b];
+                sum += output_grad[o * batch_size + b];
             }
-            bias_grad[o] /= batch_size;
+            bias_grad[o] += sum / batch_size;
         }
     }
     else if (reduction == CNeural_Reduction_Sum)
     {
+        // Compute the gradient of the weights
         for (size_t o = 0; o < output_dim; o++)
         {
-            bias_grad[o] = 0.0f;
+            for (size_t i = 0; i < input_dim; i++)
+            {
+                for (size_t b = 0; b < batch_size; b++)
+                {
+                    weights_grad[o * input_dim + i] += output_grad[o * batch_size + b] * input[i * batch_size + b];
+                }
+            }
+        }
+        // Compute the gradient of the bias
+        for (size_t o = 0; o < output_dim; o++)
+        {
             for (size_t b = 0; b < batch_size; b++)
             {
                 bias_grad[o] += output_grad[o * batch_size + b];
@@ -326,11 +411,23 @@ CNeural_Status CNeural_Linear_F32_Backward(
     }
     else if (CNeural_Reduction_None)
     {
+        // Compute the gradient of the weights
+        for (size_t o = 0; o < output_dim; o++)
+        {
+            for (size_t i = 0; i < input_dim; i++)
+            {
+                for (size_t b = 0; b < batch_size; b++)
+                {
+                    weights_grad[(o * input_dim + i) * batch_size + b] += output_grad[o * batch_size + b] * input[i * batch_size + b];
+                }
+            }
+        }
+        // Compute the gradient of the bias
         for (size_t o = 0; o < output_dim; o++)
         {
             for (size_t b = 0; b < batch_size; b++)
             {
-                bias_grad[o * batch_size + b] = output_grad[o * batch_size + b];
+                bias_grad[o * batch_size + b] += output_grad[o * batch_size + b];
             }
         }
     }
@@ -338,7 +435,7 @@ CNeural_Status CNeural_Linear_F32_Backward(
     {
         return CNeural_Error_InvalidParameter;
     }
-
+#endif
     return CNeural_Success;
 }
 
@@ -365,6 +462,116 @@ CNeural_Status CNeural_Linear_F64_Backward(
         return CNeural_Error_InvalidParameter;
     }
 #endif
+#if defined USE_CBLAS_API
+    // Compute the gradient of the input
+    cblas_dgemm(
+        CblasRowMajor,
+        CblasNoTrans, CblasNoTrans,
+        batch_size, input_dim, output_dim,
+        1.0,
+        output_grad, output_dim,
+        weights, input_dim,
+        0.0,
+        input_grad, input_dim
+    );
+    // Branch on reduction to compute the gradients of the weights and bias
+    if (reduction == CNeural_Reduction_Mean)
+    {
+        // Compute the gradient of the weights
+        cblas_dgemm(
+            CblasRowMajor,
+            CblasTrans, CblasNoTrans,
+            output_dim, input_dim, batch_size,
+            1.0 / batch_size,
+            output_grad, output_dim,
+            input_grad, input_dim,
+            0.0,
+            weights_grad, input_dim
+        );
+        // Compute the gradient of the bias
+        for (size_t b = 0; b < batch_size; b++)
+        {
+            cblas_daxpy(
+                output_dim,
+                1.0 / batch_size,
+                output_grad + b * output_dim, 1,
+                bias_grad, 1
+            );
+        }
+    }
+    else if (reduction == CNeural_Reduction_Sum)
+    {
+        // Compute the gradient of the weights
+        cblas_dgemm(
+            CblasRowMajor,
+            CblasTrans, CblasNoTrans,
+            output_dim, input_dim, batch_size,
+            1.0,
+            output_grad, output_dim,
+            input_grad, input_dim,
+            0.0,
+            weights_grad, input_dim
+        );
+        // Compute the gradient of the bias
+        for (size_t b = 0; b < batch_size; b++)
+        {
+            cblas_daxpy(
+                output_dim,
+                1.0,
+                output_grad + b * output_dim, 1,
+                bias_grad, 1
+            );
+        }
+    }
+    else if (CNeural_Reduction_None)
+    {
+        // Compute the gradient of the weights
+        CBLAS_TRANSPOSE TransA = CblasTrans;
+        CBLAS_TRANSPOSE TransB = CblasNoTrans;
+        cblasint M = output_dim;
+        cblasint N = input_dim;
+        cblasint K = 1;
+        cblasint lda = output_dim;
+        cblasint ldb = input_dim;;
+        cblasint ldc = input_dim;
+        double alpha = 1.0;
+        double beta = 0.0;
+        double** A_array = (double**)malloc(batch_size * sizeof(double*));
+        double** B_array = (double**)malloc(batch_size * sizeof(double*));
+        double** C_array = (double**)malloc(batch_size * sizeof(double*));
+        for (size_t b = 0; b < batch_size; b++)
+        {
+            A_array[b] = output_grad + b * output_dim;
+            B_array[b] = input_grad + b * input_dim;
+            C_array[b] = weights + b * output_dim * input_dim;
+        }
+        cblas_dgemm_batch(
+            CblasRowMajor,
+            &TransA, &TransB,
+            &M, &N, &K,
+            &alpha,
+            A_array, &lda,
+            B_array, &ldb,
+            &beta,
+            C_array, &ldc,
+            1, &batch_size
+        );
+        free(A_array);
+        free(B_array);
+        free(C_array);
+        // Compute the gradient of the bias
+        cblas_daxpy(
+            output_dim * batch_size,
+            1.0,
+            output_grad, 1,
+            bias_grad, 1
+        );
+    }
+    else
+    {
+        return CNeural_Error_InvalidParameter;
+    }
+#else
     // Compute the gradient of the input
     for (size_t i = 0; i < input_dim; i++)
     {
@@ -376,74 +583,49 @@ CNeural_Status CNeural_Linear_F64_Backward(
             }
         }
     }
-
-    // Compute the gradient of the weights
+    // Branch on reduction to compute the gradients of the weights and bias
     if (reduction == CNeural_Reduction_Mean)
     {
+        // Compute the gradient of the weights
         for (size_t o = 0; o < output_dim; o++)
         {
             for (size_t i = 0; i < input_dim; i++)
             {
-                weights_grad[o * input_dim + i] = 0;
+                double sum = 0;
                 for (size_t b = 0; b < batch_size; b++)
                 {
-                    weights_grad[o * input_dim + i] += output_grad[o * batch_size + b] * input[i * batch_size + b];
+                    sum += output_grad[o * batch_size + b] * input[i * batch_size + b];
                 }
+                weights_grad[o * input_dim + i] += sum / batch_size;
             }
         }
-    }
-    else if (reduction == CNeural_Reduction_Sum)
-    {
+        // Compute the gradient of the bias
         for (size_t o = 0; o < output_dim; o++)
         {
-            for (size_t i = 0; i < input_dim; i++)
-            {
-                weights_grad[o * input_dim + i] = 0;
-                for (size_t b = 0; b < batch_size; b++)
-                {
-                    weights_grad[o * input_dim + i] += output_grad[o * batch_size + b] * input[i * batch_size + b];
-                }
-                weights_grad[o * input_dim + i] /= batch_size;
-            }
-        }
-    }
-    else if (CNeural_Reduction_None)
-    {
-        for (size_t o = 0; o < output_dim; o++)
-        {
-            for (size_t i = 0; i < input_dim; i++)
-            {
-                for (size_t b = 0; b < batch_size; b++)
-                {
-                    weights_grad[(o * input_dim + i) * batch_size + b] = output_grad[o * batch_size + b] * input[i * batch_size + b];
-                }
-            }
-        }
-    }
-    else
-    {
-        return CNeural_Error_InvalidParameter;
-    }
-
-
-    // Compute the gradient of the bias
-    if (reduction == CNeural_Reduction_Mean)
-    {
-        for (size_t o = 0; o < output_dim; o++)
-        {
-            bias_grad[o] = 0;
+            double sum = 0
             for (size_t b = 0; b < batch_size; b++)
             {
-                bias_grad[o] += output_grad[o * batch_size + b];
+                sum += output_grad[o * batch_size + b];
             }
-            bias_grad[o] /= batch_size;
+            bias_grad[o] += sum / batch_size;
         }
     }
     else if (reduction == CNeural_Reduction_Sum)
     {
+        // Compute the gradient of the weights
         for (size_t o = 0; o < output_dim; o++)
         {
-            bias_grad[o] = 0;
+            for (size_t i = 0; i < input_dim; i++)
+            {
+                for (size_t b = 0; b < batch_size; b++)
+                {
+                    weights_grad[o * input_dim + i] += output_grad[o * batch_size + b] * input[i * batch_size + b];
+                }
+            }
+        }
+        // Compute the gradient of the bias
+        for (size_t o = 0; o < output_dim; o++)
+        {
             for (size_t b = 0; b < batch_size; b++)
             {
                 bias_grad[o] += output_grad[o * batch_size + b];
@@ -452,11 +634,23 @@ CNeural_Status CNeural_Linear_F64_Backward(
     }
     else if (CNeural_Reduction_None)
     {
+        // Compute the gradient of the weights
+        for (size_t o = 0; o < output_dim; o++)
+        {
+            for (size_t i = 0; i < input_dim; i++)
+            {
+                for (size_t b = 0; b < batch_size; b++)
+                {
+                    weights_grad[(o * input_dim + i) * batch_size + b] += output_grad[o * batch_size + b] * input[i * batch_size + b];
+                }
+            }
+        }
+        // Compute the gradient of the bias
         for (size_t o = 0; o < output_dim; o++)
         {
             for (size_t b = 0; b < batch_size; b++)
             {
-                bias_grad[o * batch_size + b] = output_grad[o * batch_size + b];
+                bias_grad[o * batch_size + b] += output_grad[o * batch_size + b];
             }
         }
     }
@@ -464,6 +658,6 @@ CNeural_Status CNeural_Linear_F64_Backward(
     {
         return CNeural_Error_InvalidParameter;
     }
-
+#endif
     return CNeural_Success;
 }

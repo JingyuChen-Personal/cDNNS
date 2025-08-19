@@ -53,7 +53,7 @@ CNeural_Status CNeural_ReLU_F32_Forward(
  * @return CNeural_Status Execution status code (success/error)
  */
 CNeural_Status CNeural_ReLU_F64_Forward(
-    double* input,
+    const double* input,
     double* output,
     size_t batch_size, size_t inout_dim
 )
@@ -82,9 +82,9 @@ CNeural_Status CNeural_ReLU_F64_Forward(
 
 // NOT TESTED!
 CNeural_Status CNeural_ReLU_F32_Backward(
-    float* input,
+    const float* input,
     float* input_grad,
-    float* output_grad,
+    const float* output_grad,
     size_t batch_size, size_t inout_dim
 )
 {
@@ -112,9 +112,9 @@ CNeural_Status CNeural_ReLU_F32_Backward(
 
 // NOT TESTED!
 CNeural_Status CNeural_ReLU_F64_Backward(
-    double* input,
+    const double* input,
     double* input_grad,
-    double* output_grad,
+    const double* output_grad,
     size_t batch_size, size_t inout_dim
 )
 {

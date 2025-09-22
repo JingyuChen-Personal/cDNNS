@@ -482,4 +482,5 @@ void cdnns_linear_backward_f64(
 	}
 #endif
 }
+
 */

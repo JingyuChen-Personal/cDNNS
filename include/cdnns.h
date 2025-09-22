@@ -30,7 +30,7 @@
 
 enum cdnns_type {
 	CDNNS_TYPE_FP32,
-    	CDNNS_TYPE_FP64,
+	CDNNS_TYPE_FP64,
 };
 
 enum cdnns_mode {
@@ -52,3 +52,4 @@ enum cdnns_reduction {
 };
 
 #endif
+

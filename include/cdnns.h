@@ -36,14 +36,13 @@ enum cdnns_type {
 enum cdnns_mode {
 	CDNNS_MODE_OVERWRITE,
 	CDNNS_MODE_OVERWRITE_IN_PLACE,
-    	CDNNS_MODE_ACCUMULATE
+	CDNNS_MODE_ACCUMULATE
 };
 
 enum cdnns_option {
 	CDNNS_OPTION_DEFAULT,
 	CDNNS_OPTION_NO_BIAS,
-	CDNNS_OPTION_FUSE_RELU,
-	CDNNS_OPTION_IN_PLACE
+	CDNNS_OPTION_FUSE_RELU
 };
 
 enum cdnns_reduction {
@@ -51,4 +50,5 @@ enum cdnns_reduction {
 	CDNNS_REDUCTION_SUM,
 	CDNNS_REDUCTION_NONE
 };
+
 #endif
